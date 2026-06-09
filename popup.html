@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SKKU Lecture Runner</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <div class="brand">
+          <img class="brand-icon" src="icons/icon48.png" alt="">
+          <div>
+            <h1>Lecture Runner</h1>
+            <p>Canvas SKKU 강의 순차 재생</p>
+          </div>
+        </div>
+        <div id="pageStatus" class="page-status">Canvas 탭 확인 중</div>
+      </header>
+
+      <section class="status-panel" aria-live="polite">
+        <div>
+          <span>상태</span>
+          <strong id="runStatus">대기 중</strong>
+        </div>
+        <div>
+          <span>진행</span>
+          <strong id="progressText">0 / 0</strong>
+        </div>
+      </section>
+
+      <section class="controls" aria-label="Autoplayer controls">
+        <button id="startButton" type="button" class="primary">시작</button>
+        <button id="nextButton" type="button" class="secondary">다음</button>
+        <button id="stopButton" type="button" class="danger">정지</button>
+      </section>
+
+      <section class="search" aria-label="Lecture search">
+        <input id="searchInput" type="search" placeholder="할 일에서 강의명, 주차 검색">
+        <button id="searchButton" type="button" class="secondary">검색</button>
+      </section>
+
+      <section class="options" aria-label="Options">
+        <label>
+          <input id="includeCompleted" type="checkbox">
+          완료처럼 보이는 항목도 포함
+        </label>
+      </section>
+
+      <section class="queue">
+        <div class="queue-head">
+          <span>할 일 미리보기</span>
+          <span id="queueCount">0개</span>
+        </div>
+        <ol id="queueList"></ol>
+      </section>
+
+      <p id="message" class="message">마이 페이지의 할 일 영역에서 시작하세요.</p>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
