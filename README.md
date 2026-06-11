@@ -4,20 +4,15 @@
 
 ## 설치
 
-1. Chrome에서 `chrome://extensions`를 엽니다.
-2. 오른쪽 위 `Developer mode`를 켭니다.
-3. `Load unpacked`를 누릅니다.
-4. 이 폴더를 선택합니다: `canvas-skku-video-autoplayer`
-
-## 자동재생 전용 Chrome 실행
-
-Chrome 자동재생 정책 때문에 첫 재생이 막히면 일반 Chrome 대신 아래 PowerShell 스크립트로 전용 Chrome 프로필을 실행합니다.
-
-```powershell
-.\launch-chrome-autoplay.ps1
-```
-
-이 스크립트는 `--autoplay-policy=no-user-gesture-required` 플래그와 별도 Chrome 프로필을 사용합니다.
+1. GitHub 저장소 페이지로 이동합니다: `https://github.com/kieranoh/canvas-autoplay`
+2. 오른쪽 위 `Code` 버튼을 누른 뒤 `Download ZIP`을 선택합니다.
+3. 내려받은 ZIP 파일의 압축을 풉니다.
+4. Chrome에서 `chrome://extensions`를 엽니다.
+5. 오른쪽 위 `Developer mode`를 켭니다.
+6. `Load unpacked`를 누릅니다.
+7. 압축을 푼 폴더 안에서 `manifest.json`이 들어 있는 폴더를 선택합니다.
+   - 보통 선택할 폴더 이름은 `canvas-autoplay-main`입니다.
+   - 폴더를 열었을 때 `manifest.json`, `popup.html`, `content.js`가 바로 보여야 합니다.
 
 ## 사용
 
