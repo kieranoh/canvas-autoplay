@@ -15,14 +15,21 @@ const els = {
   stopButton: document.getElementById("stopButton"),
   includeCompleted: document.getElementById("includeCompleted"),
   searchInput: document.getElementById("searchInput"),
-  searchButton: document.getElementById("searchButton")
+  searchButton: document.getElementById("searchButton"),
+  selectAllButton: document.getElementById("selectAllButton"),
+  clearSelectionButton: document.getElementById("clearSelectionButton")
 };
+
+const selectedItemKeys = new Set();
+let lastQueueSignature = "";
 
 document.addEventListener("DOMContentLoaded", init);
 els.startButton.addEventListener("click", start);
 els.searchButton.addEventListener("click", search);
 els.nextButton.addEventListener("click", next);
 els.stopButton.addEventListener("click", stop);
+els.selectAllButton.addEventListener("click", selectAllPreviewItems);
+els.clearSelectionButton.addEventListener("click", clearPreviewSelection);
 els.includeCompleted.addEventListener("change", saveOptions);
 els.searchInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") search();
@@ -53,8 +60,38 @@ async function refreshStateOnly() {
 
 async function start() {
   await saveOptions();
+
+  const stateResult = await chrome.storage.local.get(STATE_KEY);
+  const previewState = stateResult[STATE_KEY];
+  const previewQueue = Array.isArray(previewState?.queue) ? previewState.queue : [];
+  if (!previewState?.enabled && previewQueue.length) {
+    const selectedQueue = previewQueue.filter((item) => selectedItemKeys.has(itemKey(item)));
+    if (!selectedQueue.length) {
+      showMessage("시작할 항목을 하나 이상 선택하세요.");
+      return;
+    }
+
+    const state = {
+      ...previewState,
+      enabled: true,
+      statusText: "첫 영상 항목 여는 중",
+      note: selectedQueue[0].url ? "" : "이 항목은 URL이 없어 표 행을 직접 클릭합니다.",
+      queue: selectedQueue,
+      currentIndex: 0,
+      startedAt: Date.now(),
+      navigatedAt: Date.now()
+    };
+    await chrome.storage.local.set({ [STATE_KEY]: state });
+    syncSelectionToQueue(selectedQueue);
+    const opened = await openItemInFrame(previewState.sourceFrameId ?? -1, selectedQueue[0]);
+    showMessage(opened ? `선택한 동영상 ${selectedQueue.length}개 중 첫 항목을 열었습니다.` : "첫 항목을 자동으로 열지 못했습니다.");
+    await refresh();
+    return;
+  }
+
   const allFrameScan = await scanAllFrames({ videoOnly: true });
   if (allFrameScan?.items?.length) {
+    syncSelectionToQueue(allFrameScan.items);
     const state = {
       enabled: true,
       statusText: "첫 영상 항목 여는 중",
@@ -93,10 +130,12 @@ async function search() {
         note: "",
         queue: allFrameScan.items,
         currentIndex: -1,
+        sourceFrameId: allFrameScan.sourceFrameId,
         startedAt: Date.now(),
         diagnostics: allFrameScan.diagnostics
       }
     });
+    syncSelectionToQueue(allFrameScan.items);
     showMessage(`동영상 할 일 ${allFrameScan.items.length}개를 찾았습니다. frame ${allFrameScan.sourceFrameId} 기준.`);
     await refresh();
     return;
@@ -191,6 +230,10 @@ async function openItemInFrame(frameId, item) {
   if (item?.url) {
     await chrome.tabs.update(tab.id, { url: item.url });
     return true;
+  }
+
+  if (!Number.isInteger(frameId) || frameId < 0) {
+    return false;
   }
 
   try {
@@ -555,17 +598,37 @@ function renderState(state) {
   const queue = Array.isArray(state?.queue) ? state.queue : [];
   const currentIndex = Number.isInteger(state?.currentIndex) ? state.currentIndex : -1;
   const done = state?.enabled && queue.length ? Math.min(currentIndex + 1, queue.length) : 0;
+  reconcileSelection(queue, Boolean(state?.enabled));
 
   els.runStatus.textContent = state?.statusText || (state?.enabled ? "Running" : "Idle");
   els.progressText.textContent = `${done} / ${queue.length}`;
-  els.queueCount.textContent = `${queue.length}개`;
+  const selectedCount = queue.filter((item) => selectedItemKeys.has(itemKey(item))).length;
+  els.queueCount.textContent = state?.enabled ? `${queue.length}개` : `${selectedCount} / ${queue.length}개 선택`;
   els.nextButton.disabled = !state?.enabled || queue.length === 0;
   els.stopButton.disabled = !state?.enabled;
+  els.selectAllButton.disabled = Boolean(state?.enabled) || queue.length === 0;
+  els.clearSelectionButton.disabled = Boolean(state?.enabled) || queue.length === 0;
 
   els.queueList.replaceChildren();
   for (const [index, item] of queue.entries()) {
     const li = document.createElement("li");
-    li.textContent = item.type ? `[${item.type}] ${item.title || item.url}` : item.title || item.url;
+    const key = itemKey(item);
+    const label = document.createElement("label");
+    const checkbox = document.createElement("input");
+    const text = document.createElement("span");
+
+    checkbox.type = "checkbox";
+    checkbox.checked = selectedItemKeys.has(key);
+    checkbox.disabled = Boolean(state?.enabled);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) selectedItemKeys.add(key);
+      else selectedItemKeys.delete(key);
+      renderState(state);
+    });
+
+    text.textContent = item.type ? `[${item.type}] ${item.title || item.url}` : item.title || item.url;
+    label.append(checkbox, text);
+    li.append(label);
     li.title = item.url || item.title || "";
     if (index < currentIndex) li.className = "done";
     if (index === currentIndex) li.className = "current";
@@ -582,6 +645,60 @@ function setButtons(isCanvas) {
 
 function showMessage(message) {
   els.message.textContent = message;
+}
+
+function itemKey(item) {
+  return [
+    item?.url || "",
+    item?.clickText || item?.title || "",
+    item?.course || "",
+    item?.type || ""
+  ].join("|");
+}
+
+function queueSignature(queue) {
+  return queue.map(itemKey).join("\n");
+}
+
+function reconcileSelection(queue, isRunning) {
+  const signature = queueSignature(queue);
+  if (!queue.length) {
+    selectedItemKeys.clear();
+    lastQueueSignature = "";
+    return;
+  }
+
+  if (signature !== lastQueueSignature) {
+    selectedItemKeys.clear();
+    for (const item of queue) selectedItemKeys.add(itemKey(item));
+    lastQueueSignature = signature;
+    return;
+  }
+
+  if (isRunning) {
+    selectedItemKeys.clear();
+    for (const item of queue) selectedItemKeys.add(itemKey(item));
+  }
+}
+
+function syncSelectionToQueue(queue) {
+  selectedItemKeys.clear();
+  for (const item of queue) selectedItemKeys.add(itemKey(item));
+  lastQueueSignature = queueSignature(queue);
+}
+
+async function selectAllPreviewItems() {
+  const stateResult = await chrome.storage.local.get(STATE_KEY);
+  const queue = Array.isArray(stateResult[STATE_KEY]?.queue) ? stateResult[STATE_KEY].queue : [];
+  syncSelectionToQueue(queue);
+  renderState(stateResult[STATE_KEY]);
+}
+
+async function clearPreviewSelection() {
+  selectedItemKeys.clear();
+  const stateResult = await chrome.storage.local.get(STATE_KEY);
+  lastQueueSignature = queueSignature(Array.isArray(stateResult[STATE_KEY]?.queue) ? stateResult[STATE_KEY].queue : []);
+  renderState(stateResult[STATE_KEY]);
 }
 
 function delay(ms) {

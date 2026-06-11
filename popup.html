@@ -51,7 +51,11 @@
       <section class="queue">
         <div class="queue-head">
           <span>할 일 미리보기</span>
-          <span id="queueCount">0개</span>
+          <div class="queue-actions">
+            <button id="selectAllButton" type="button">전체</button>
+            <button id="clearSelectionButton" type="button">해제</button>
+            <span id="queueCount">0개</span>
+          </div>
         </div>
         <ol id="queueList"></ol>
       </section>
