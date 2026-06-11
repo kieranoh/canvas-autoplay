@@ -2,6 +2,8 @@
 
 `canvas.skku.edu` 마이 페이지의 할 일 영역에서 영상으로 보이는 항목을 모아 하나씩 열고, HTML5 영상 재생이 끝나면 다음 항목으로 이동하는 Chrome 확장자입니다.
 
+유용하게 사용했다면 GitHub 저장소 오른쪽 위의 `Star`를 한 번 눌러주면 도움이 됩니다.
+
 ## 설치
 
 1. GitHub 저장소 페이지로 이동합니다: `https://github.com/kieranoh/canvas-autoplay`
