@@ -65,7 +65,9 @@ async function start() {
   const previewState = stateResult[STATE_KEY];
   const previewQueue = Array.isArray(previewState?.queue) ? previewState.queue : [];
   if (!previewState?.enabled && previewQueue.length) {
-    const selectedQueue = previewQueue.filter((item) => selectedItemKeys.has(itemKey(item)));
+    const selectedQueue = previewQueue
+      .filter((item) => !isAssignmentItem(item))
+      .filter((item) => selectedItemKeys.has(itemKey(item)));
     if (!selectedQueue.length) {
       showMessage("시작할 항목을 하나 이상 선택하세요.");
       return;
@@ -90,13 +92,14 @@ async function start() {
   }
 
   const allFrameScan = await scanAllFrames({ videoOnly: true });
-  if (allFrameScan?.items?.length) {
-    syncSelectionToQueue(allFrameScan.items);
+  const scannedItems = (allFrameScan?.items || []).filter((item) => !isAssignmentItem(item));
+  if (scannedItems.length) {
+    syncSelectionToQueue(scannedItems);
     const state = {
       enabled: true,
       statusText: "첫 영상 항목 여는 중",
-      note: allFrameScan.items[0].url ? "" : "이 항목은 URL이 없어 표 행을 직접 클릭합니다.",
-      queue: allFrameScan.items,
+      note: scannedItems[0].url ? "" : "이 항목은 URL이 없어 표 행을 직접 클릭합니다.",
+      queue: scannedItems,
       currentIndex: 0,
       sourceFrameId: allFrameScan.sourceFrameId,
       startedAt: Date.now(),
@@ -104,8 +107,8 @@ async function start() {
       diagnostics: allFrameScan.diagnostics
     };
     await chrome.storage.local.set({ [STATE_KEY]: state });
-    const opened = await openItemInFrame(allFrameScan.sourceFrameId, allFrameScan.items[0]);
-    showMessage(opened ? `동영상 항목 ${allFrameScan.items.length}개 중 첫 항목을 열었습니다.` : "첫 항목을 자동으로 열지 못했습니다.");
+    const opened = await openItemInFrame(allFrameScan.sourceFrameId, scannedItems[0]);
+    showMessage(opened ? `동영상 항목 ${scannedItems.length}개 중 첫 항목을 열었습니다.` : "첫 항목을 자동으로 열지 못했습니다.");
     await refresh();
     return;
   }
@@ -122,21 +125,22 @@ async function start() {
 async function search() {
   await saveOptions();
   const allFrameScan = await scanAllFrames({ videoOnly: true });
-  if (allFrameScan?.items?.length) {
+  const scannedItems = (allFrameScan?.items || []).filter((item) => !isAssignmentItem(item));
+  if (scannedItems.length) {
     await chrome.storage.local.set({
       [STATE_KEY]: {
         enabled: false,
         statusText: "할 일 미리보기 완료",
         note: "",
-        queue: allFrameScan.items,
+        queue: scannedItems,
         currentIndex: -1,
         sourceFrameId: allFrameScan.sourceFrameId,
         startedAt: Date.now(),
         diagnostics: allFrameScan.diagnostics
       }
     });
-    syncSelectionToQueue(allFrameScan.items);
-    showMessage(`동영상 할 일 ${allFrameScan.items.length}개를 찾았습니다. frame ${allFrameScan.sourceFrameId} 기준.`);
+    syncSelectionToQueue(scannedItems);
+    showMessage(`동영상 할 일 ${scannedItems.length}개를 찾았습니다. frame ${allFrameScan.sourceFrameId} 기준.`);
     await refresh();
     return;
   }
@@ -266,6 +270,8 @@ function scanFrameForTodos(options) {
       return true;
     })
     .slice(0, 100);
+
+  items = items.filter((item) => !isAssignmentItem(item));
 
   if (videoOnly) {
     items = filterVideoItems(items, courseVideoCounts);
@@ -408,6 +414,14 @@ function scanFrameForTodos(options) {
 
     const value = normalize(`${item.title || ""} ${item.rawText || ""}`);
     return ["동영상", "영상", "video", "media", "lecture", "차시"].some((word) => value.includes(normalize(word)));
+  }
+
+  function isAssignmentItem(item) {
+    try {
+      return item?.url && new URL(item.url, location.href).pathname.includes("/assignments/");
+    } catch (_error) {
+      return false;
+    }
   }
 
   function filterVideoItems(values, counts) {
@@ -654,6 +668,15 @@ function itemKey(item) {
     item?.course || "",
     item?.type || ""
   ].join("|");
+}
+
+function isAssignmentItem(item) {
+  if (!item?.url) return false;
+  try {
+    return new URL(item.url).pathname.includes("/assignments/");
+  } catch (_error) {
+    return false;
+  }
 }
 
 function queueSignature(queue) {

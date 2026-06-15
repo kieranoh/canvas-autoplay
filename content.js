@@ -95,6 +95,11 @@ async function boot() {
     return;
   }
 
+  if (isAssignmentItem(current) || isAssignmentUrl(location.href)) {
+    await goToNext("과제 항목이라 자동으로 건너뜁니다.");
+    return;
+  }
+
   const recentlyNavigated = Date.now() - Number(state.navigatedAt || 0) < 120000;
   if (current.url && !sameCanvasPage(location.href, current.url) && !recentlyNavigated) {
     await updateState({
@@ -495,6 +500,7 @@ function collectTodoVideoLinks(options) {
     const text = getLinkContextText(anchor);
 
     if (url.origin !== location.origin) continue;
+    if (isAssignmentUrl(url.href)) continue;
     if (isIgnoredLink(anchor, url, text)) continue;
     if (!isLikelyTodoContext(anchor)) continue;
 
@@ -528,6 +534,7 @@ function collectTodoPreviewLinks(options) {
     const text = getLinkContextText(anchor);
 
     if (url.origin !== location.origin) continue;
+    if (isAssignmentUrl(url.href)) continue;
     if (isIgnoredLink(anchor, url, text)) continue;
     if (options.searchQuery && !normalizeText(`${text} ${url.href}`).includes(options.searchQuery)) continue;
     if (!options.includeCompleted && looksCompleted(anchor, text)) continue;
@@ -566,6 +573,7 @@ function collectTodoTextItems(options, settings) {
 
     const item = buildTodoItemFromCells(cells, line, "");
     if (!item) continue;
+    if (isAssignmentItem(item)) continue;
 
     const haystack = normalizeText(`${item.title} ${item.course || ""} ${item.rawText || ""}`);
     if (options.searchQuery && !haystack.includes(options.searchQuery)) continue;
@@ -591,6 +599,7 @@ function collectTodoRowItems(options, settings) {
 
     const item = extractTodoRowItem(row);
     if (!item) continue;
+    if (isAssignmentItem(item)) continue;
 
     const haystack = normalizeText(`${item.title} ${item.course || ""} ${item.rawText || ""} ${item.url || ""}`);
     if (options.searchQuery && !haystack.includes(options.searchQuery)) continue;
@@ -675,6 +684,7 @@ function findFirstUsableUrl(root) {
     const url = new URL(anchor.href, location.href);
     const text = getLinkContextText(anchor);
     if (url.origin !== location.origin) continue;
+    if (isAssignmentUrl(url.href)) continue;
     if (isIgnoredLink(anchor, url, text)) continue;
     return url.href;
   }
@@ -745,6 +755,19 @@ function isVisibleEnough(element) {
   const rect = element.getBoundingClientRect();
   const style = getComputedStyle(element);
   return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+}
+
+function isAssignmentItem(item) {
+  return isAssignmentUrl(item?.url || "");
+}
+
+function isAssignmentUrl(url) {
+  if (!url) return false;
+  try {
+    return new URL(url, location.href).pathname.includes("/assignments/");
+  } catch (_error) {
+    return false;
+  }
 }
 
 function openQueueItem(item) {

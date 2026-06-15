@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SKKU Lecture Runner",
   "description": "Finds Canvas SKKU lecture items and moves through them one by one.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "permissions": ["activeTab", "storage", "scripting", "debugger", "tabs"],
   "host_permissions": [
     "https://canvas.skku.edu/*",
